@@ -5,7 +5,7 @@
   become_flags: '-H'
 
   vars:
-    username: azongo
+    username: 
     ansible_remote_tmp: /tmp/.ansible
 
   environment:
