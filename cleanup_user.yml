@@ -1,0 +1,68 @@
+---
+- name: Nettoyage complet utilisateur
+  hosts: all
+  become: yes
+  vars:
+    username: azongo
+
+  tasks:
+
+    - name: Kill tous les processus de l'utilisateur
+      shell: pkill -u {{ username }}
+      ignore_errors: yes
+
+    - name: Supprimer le user (et son home)
+      user:
+        name: "{{ username }}"
+        state: absent
+        remove: yes
+        force: yes
+
+    - name: Supprimer le dossier home restant (si existe)
+      file:
+        path: "/home/{{ username }}"
+        state: absent
+
+    - name: Nettoyer les clés SSH root
+      lineinfile:
+        path: "/root/.ssh/authorized_keys"
+        regexp: "{{ username }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Supprimer les fichiers cron utilisateur
+      file:
+        path: "/var/spool/cron/{{ username }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Nettoyer /etc/sudoers.d
+      file:
+        path: "/etc/sudoers.d/{{ username }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Vérifier et supprimer toute référence dans sudoers
+      lineinfile:
+        path: /etc/sudoers
+        regexp: "{{ username }}"
+        state: absent
+        validate: 'visudo -cf %s'
+      ignore_errors: yes
+
+    - name: Supprimer dossiers temporaires suspects
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/{{ username }}"
+        - "/var/tmp/{{ username }}"
+      ignore_errors: yes
+
+    - name: Audit - Vérifier fichiers .ssh dans autres home
+      shell: "grep -rl '{{ username }}' /home/*/.ssh/ || true"
+      register: ssh_scan
+
+    - name: Afficher résultats scan SSH
+      debug:
+        var: ssh_scan.stdout_lines
