@@ -1,22 +1,15 @@
----
 - name: Nettoyage complet utilisateur
   hosts: all
   become: yes
   become_method: sudo
-  become_user: root
   become_flags: '-H'
-  
-  # AJOUTEZ CES VARIABLES
-  vars:
-    ansible_remote_tmp: /tmp/.ansible
-  
-  environment:
-    ANSIBLE_REMOTE_TEMP: /tmp/.ansible
-    ANSIBLE_HOST_KEY_CHECKING: "False"
-  
-  roles:
+
   vars:
     username: azongo
+    ansible_remote_tmp: /tmp/.ansible
+
+  environment:
+    ANSIBLE_REMOTE_TMP: /tmp/.ansible
 
   tasks:
 
@@ -31,31 +24,32 @@
         remove: yes
         force: yes
 
-    - name: Supprimer le dossier home restant (si existe)
+    - name: Supprimer le dossier home restant
       file:
         path: "/home/{{ username }}"
         state: absent
+      ignore_errors: yes
 
-    - name: Nettoyer les clés SSH root
+    - name: Nettoyer clés SSH root
       lineinfile:
-        path: "/root/.ssh/authorized_keys"
+        path: /root/.ssh/authorized_keys
         regexp: "{{ username }}"
         state: absent
       ignore_errors: yes
 
-    - name: Supprimer les fichiers cron utilisateur
+    - name: Supprimer cron user
       file:
         path: "/var/spool/cron/{{ username }}"
         state: absent
       ignore_errors: yes
 
-    - name: Nettoyer /etc/sudoers.d
+    - name: Nettoyer sudoers.d
       file:
         path: "/etc/sudoers.d/{{ username }}"
         state: absent
       ignore_errors: yes
 
-    - name: Vérifier et supprimer toute référence dans sudoers
+    - name: Supprimer sudoers global
       lineinfile:
         path: /etc/sudoers
         regexp: "{{ username }}"
@@ -63,19 +57,9 @@
         validate: 'visudo -cf %s'
       ignore_errors: yes
 
-    - name: Supprimer dossiers temporaires suspects
-      file:
-        path: "{{ item }}"
-        state: absent
-      loop:
-        - "/tmp/{{ username }}"
-        - "/var/tmp/{{ username }}"
-      ignore_errors: yes
-
-    - name: Audit - Vérifier fichiers .ssh dans autres home
+    - name: Audit SSH keys restantes
       shell: "grep -rl '{{ username }}' /home/*/.ssh/ || true"
       register: ssh_scan
 
-    - name: Afficher résultats scan SSH
-      debug:
+    - debug:
         var: ssh_scan.stdout_lines
